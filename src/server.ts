@@ -6,6 +6,17 @@ import { exportSession, markStoriesAsSeen } from "./instagram";
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+app.use((_req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+  if (_req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 function proxyGet(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     https
