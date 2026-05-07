@@ -1,9 +1,48 @@
 import "dotenv/config";
 import express from "express";
+import https from "https";
 import { exportSession, markStoriesAsSeen } from "./instagram";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
+
+function proxyGet(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (apiRes) => {
+        let data = "";
+        apiRes.on("data", (chunk) => (data += chunk));
+        apiRes.on("end", () => resolve(data));
+      })
+      .on("error", reject);
+  });
+}
+
+app.get("/indodax-summaries", async (_req, res) => {
+  try {
+    const data = await proxyGet("https://indodax.com/api/summaries");
+    res.setHeader("Content-Type", "application/json");
+    res.send(data);
+  } catch (err: any) {
+    res.status(500).send("Error fetching data: " + (err.message ?? "Unknown error"));
+  }
+});
+
+app.get("/binance-ticker-price", async (req, res) => {
+  const { symbol } = req.query;
+  if (!symbol) {
+    res.status(400).json({ error: "Missing required query parameter: symbol" });
+    return;
+  }
+  try {
+    const url = `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(symbol as string)}`;
+    const data = await proxyGet(url);
+    res.setHeader("Content-Type", "application/json");
+    res.send(data);
+  } catch (err: any) {
+    res.status(500).send("Error fetching data: " + (err.message ?? "Unknown error"));
+  }
+});
 
 app.get("/stories/seen", async (req, res) => {
   const { targetUsername } = req.query;
