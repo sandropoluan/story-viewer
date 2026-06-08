@@ -8,6 +8,15 @@
  * - markStoryItemAsSeen: /stories/reel/seen
  */
 
+// Polyfill fetch and Headers for Node < 18
+import nodeFetch, { Headers as NodeFetchHeaders, Response as NodeFetchResponse, Request as NodeFetchRequest } from "node-fetch";
+if (typeof globalThis.fetch === "undefined") {
+  (globalThis as any).fetch = nodeFetch;
+  (globalThis as any).Headers = NodeFetchHeaders;
+  (globalThis as any).Response = NodeFetchResponse;
+  (globalThis as any).Request = NodeFetchRequest;
+}
+
 const BASE = "https://www.instagram.com";
 
 type CookieJar = Map<string, string>;
@@ -356,8 +365,8 @@ export class InstagramClient {
   }
 
   /**
-   * Mark story as seen via GraphQL PolarisStoriesV3SeenMutation.
-   * This is the actual endpoint Instagram web uses when you view a story (from HAR).
+   * Mark story as seen via GraphQL PolarisAPIReelSeenMutation.
+   * doc_id: 26997980659837802 — the real mutation Instagram web fires when you watch a story.
    * Requires fb_dtsg and lsd from page. Pass cached tokens to avoid re-fetching.
    */
   async markStoryAsSeenViaGraphQL(params: {
@@ -389,7 +398,6 @@ export class InstagramClient {
     }
 
     const form = new URLSearchParams();
-    form.set("av", "17841401631646403");
     form.set("__d", "www");
     form.set("__user", "0");
     form.set("__a", "1");
@@ -399,10 +407,10 @@ export class InstagramClient {
     form.set("jazoest", "26300");
     form.set("lsd", lsd);
     form.set("fb_api_caller_class", "RelayModern");
-    form.set("fb_api_req_friendly_name", "PolarisStoriesV3SeenMutation");
+    form.set("fb_api_req_friendly_name", "PolarisAPIReelSeenMutation");
     form.set("server_timestamps", "true");
     form.set("variables", JSON.stringify(variables));
-    form.set("doc_id", "24372833149008516");
+    form.set("doc_id", "26997980659837802");
 
     const referer = `${BASE}/stories/${username}/`;
     const res = await fetchIG("/graphql/query", {
@@ -416,7 +424,7 @@ export class InstagramClient {
         "X-ASBD-ID": "359341",
         "X-FB-LSD": lsd,
         "X-IG-App-ID": "936619743392459",
-        "X-FB-Friendly-Name": "PolarisStoriesV3SeenMutation",
+        "X-FB-Friendly-Name": "PolarisAPIReelSeenMutation",
         "X-Root-Field-Name": "xdt_api__v1__stories__reel__seen",
       },
       cookieJar: this.jar,
@@ -427,8 +435,8 @@ export class InstagramClient {
     if (!res.ok) {
       throw new Error(`GraphQL seen mutation failed ${res.status}: ${text.slice(0, 200)}`);
     }
-    const json = JSON.parse(text) as { status?: string; data?: { xdt_api__v1__stories__reel__seen?: unknown }; message?: string };
-    if (json.status !== "ok" || !json.data?.xdt_api__v1__stories__reel__seen) {
+    const json = JSON.parse(text) as { status?: string; data?: Record<string, unknown> | null; errors?: unknown[]; message?: string };
+    if (json.status !== "ok" || json.errors?.length || json.data == null) {
       throw new Error(json.message ?? `GraphQL seen returned: ${text.slice(0, 150)}`);
     }
   }
